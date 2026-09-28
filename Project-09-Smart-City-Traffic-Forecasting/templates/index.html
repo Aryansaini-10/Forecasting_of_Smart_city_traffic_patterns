@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart City Traffic Forecasting | ML Project 9</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js for interactive analytics visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="header">
+        <div class="nav-container">
+            <div class="brand">
+                <span class="brand-icon">🚦</span>
+                <div>
+                    <h1 class="brand-title">Smart City Traffic Forecasting</h1>
+                    <p class="brand-subtitle">Project 9 &bull; Machine Learning Internship by UCT</p>
+                </div>
+            </div>
+            <div class="status-badges">
+                <div class="badge">
+                    <span class="badge-pulse"></span>
+                    <span>Live ML Pipeline</span>
+                </div>
+                <div class="badge badge-primary">
+                    <span>Model: {{ selected_model_name }} (R²: {{ best_r2 }})</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Container -->
+    <main class="main-content">
+
+        <!-- Top Statistics Overview -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Training Observations</div>
+                <div class="stat-value">37,956</div>
+                <div class="stat-subtext">Nov 2015 &ndash; Mar 2017 (Chronological)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Validation Set</div>
+                <div class="stat-value">9,492</div>
+                <div class="stat-subtext">Mar 2017 &ndash; Jun 2017 (Ground Truth)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Test Predictions</div>
+                <div class="stat-value">11,808</div>
+                <div class="stat-subtext">Jul 2017 &ndash; Oct 2017 (Recursive Horizon)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Selected Model</div>
+                <div class="stat-value">{{ selected_model_name }}</div>
+                <div class="stat-subtext">MAE: {{ best_mae }} | RMSE: {{ best_rmse }}</div>
+            </div>
+        </section>
+
+        <!-- Prediction Section & Live Result (Hero Grid) -->
+        <section class="hero-grid">
+            <!-- Forecast Input Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><span>⚡</span> Traffic Forecast Engine</h2>
+                    <p class="card-description">Select a city junction and target time to generate real-time vehicle flow predictions using the trained Random Forest model.</p>
+                </div>
+
+                <div id="prediction-error" class="alert-error"></div>
+
+                <form id="prediction-form">
+                    <!-- Junction Selection -->
+                    <div class="form-group">
+                        <label for="forecast-junction" class="form-label">City Junction</label>
+                        <select id="forecast-junction" class="form-select" required>
+                            <option value="1" selected>Junction 1 &mdash; Primary Metropolitan Corridor (High Density)</option>
+                            <option value="2">Junction 2 &mdash; Commercial / Business Hub (Moderate Density)</option>
+                            <option value="3">Junction 3 &mdash; Residential / Suburban Arterial (Moderate Density)</option>
+                            <option value="4">Junction 4 &mdash; Emerging Industrial Route (Lower Density)</option>
+                        </select>
+                    </div>
+
+                    <!-- Date Selection -->
+                    <div class="form-group">
+                        <label for="forecast-date" class="form-label">Forecast Date</label>
+                        <input type="date" id="forecast-date" class="form-input" value="2017-08-15" required>
+                    </div>
+
+                    <!-- Time Selection -->
+                    <div class="form-group">
+                        <label for="forecast-time" class="form-label">Forecast Hour / Time</label>
+                        <input type="time" id="forecast-time" class="form-input" value="09:00" step="3600" required>
+                    </div>
+
+                    <!-- Quick Scenario Presets -->
+                    <div class="form-group">
+                        <label class="form-label" style="font-size: 0.75rem; color: var(--text-muted);">Quick Scenario Presets</label>
+                        <div class="quick-presets">
+                            <button type="button" class="preset-btn" data-junction="1" data-date="2017-08-15" data-time="09:00">Morning Peak (09:00, J1)</button>
+                            <button type="button" class="preset-btn" data-junction="1" data-date="2017-08-15" data-time="18:00">Evening Rush (18:00, J1)</button>
+                            <button type="button" class="preset-btn" data-junction="2" data-date="2017-08-15" data-time="13:00">Midday Flow (13:00, J2)</button>
+                            <button type="button" class="preset-btn" data-junction="1" data-date="2017-08-15" data-time="03:00">Night Low (03:00, J1)</button>
+                            <button type="button" class="preset-btn" data-junction="4" data-date="2017-08-20" data-time="14:00">Sunday Flow (14:00, J4)</button>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="btn-forecast" class="btn-forecast">
+                        <span id="btn-spinner" class="spinner"></span>
+                        <span id="btn-text">Forecast Traffic</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Prediction Result Card -->
+            <div class="card result-card">
+                <!-- Initial Placeholder -->
+                <div id="result-placeholder" class="result-placeholder">
+                    <div class="result-placeholder-icon">🚗💨</div>
+                    <h3 style="color: var(--text-secondary); margin-bottom: 0.5rem;">Awaiting Forecast Parameters</h3>
+                    <p style="font-size: 0.85rem;">Select a junction, date, and hour, then click <strong>Forecast Traffic</strong> to generate instant predictions via the trained ML model.</p>
+                </div>
+
+                <!-- Dynamic Prediction Display -->
+                <div id="result-display" class="result-display">
+                    <div class="result-header">
+                        <span class="card-title" style="font-size: 1.1rem;">Prediction Result</span>
+                        <div class="result-meta">
+                            <span id="result-junction" style="font-weight: 600; color: var(--accent-cyan);">Junction 1</span> &bull; 
+                            <span id="result-datetime">2017-08-15 09:00:00</span>
+                        </div>
+                    </div>
+
+                    <div class="result-number-container">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Predicted Traffic Volume</div>
+                        <div id="predicted-number" class="result-number">--</div>
+                        <div class="result-unit">vehicles / hour</div>
+                        <div id="traffic-level" class="traffic-level-badge level-moderate">Moderate Traffic</div>
+                    </div>
+
+                    <!-- Operational Threshold Disclaimer -->
+                    <p class="threshold-note">
+                        * Note: Traffic Level is a derived operational interpretation based on vehicle volume thresholds (< 20: Low, 20&ndash;50: Moderate, > 50: Heavy), not a distinct classification model prediction.
+                    </p>
+
+                    <!-- Feature Breakdown Collapsible -->
+                    <div class="feature-details">
+                        <button type="button" id="feature-toggle" class="feature-toggle">
+                            <span>View 22 Pipeline Features ▼</span>
+                        </button>
+                        <table id="feature-table" class="feature-table">
+                            <thead>
+                                <tr>
+                                    <th>Engineered Feature</th>
+                                    <th>Calculated Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="feature-table-body">
+                                <!-- Populated dynamically by script.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics & Dashboard Charts -->
+        <section class="analytics-section">
+            <div class="section-header">
+                <h2 class="section-title">Smart City Traffic Analytics</h2>
+                <p class="section-subtitle">Real-time and historical analytical summaries computed from the 48,120 training and 11,808 test observations.</p>
+            </div>
+
+            <div class="charts-grid">
+                <!-- Chart 1: Traffic by Junction -->
+                <div class="chart-card">
+                    <h3 class="chart-title">Traffic Volume by Junction</h3>
+                    <p class="chart-subtitle">Historical Training Average vs. Autoregressive Test Forecast Average</p>
+                    <div class="chart-wrapper">
+                        <canvas id="junctionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Hourly Diurnal Traffic Pattern -->
+                <div class="chart-card">
+                    <h3 class="chart-title">Hourly Diurnal Traffic Pattern (24-Hour Cycle)</h3>
+                    <p class="chart-subtitle">Average vehicle counts highlighting morning (09:00) and evening (17:00&ndash;19:00) rush hours</p>
+                    <div class="chart-wrapper">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 3: Model Performance Comparison -->
+                <div class="chart-card">
+                    <h3 class="chart-title">Validation Error Comparison (MAE &amp; RMSE)</h3>
+                    <p class="chart-subtitle">Strict chronological validation set evaluation (Lower values indicate superior fit)</p>
+                    <div class="chart-wrapper">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Model Comparison Table Card -->
+                <div class="chart-card">
+                    <h3 class="chart-title">Model Evaluation &amp; Comparison</h3>
+                    <p class="chart-subtitle">Exact calculated validation metrics across trained models</p>
+                    <div class="table-responsive">
+                        <table class="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Model Architecture</th>
+                                    <th>MAE</th>
+                                    <th>RMSE</th>
+                                    <th>R² Score</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="row-selected">
+                                    <td>
+                                        <strong>Random Forest</strong>
+                                        <span class="badge-selected">Selected</span>
+                                    </td>
+                                    <td>2.9065</td>
+                                    <td>4.7729</td>
+                                    <td>0.9692</td>
+                                    <td><span style="color: var(--accent-emerald); font-weight: 600;">Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Linear Regression</td>
+                                    <td>3.0821</td>
+                                    <td>4.8003</td>
+                                    <td>0.9689</td>
+                                    <td><span style="color: var(--text-muted);">Baseline</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Decision Tree</td>
+                                    <td>4.2498</td>
+                                    <td>6.7260</td>
+                                    <td>0.9389</td>
+                                    <td><span style="color: var(--text-muted);">Baseline</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.75rem;">
+                        * Validation metrics were evaluated on 9,492 chronological validation records where actual ground truth counts were available. Test.csv was not used to compute error metrics.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Static Analysis Figures Gallery -->
+        <section class="analytics-section">
+            <div class="section-header">
+                <h2 class="section-title">Saved Pipeline Diagnostic Visualizations</h2>
+                <p class="section-subtitle">High-resolution figures generated by <code>traffic_forecasting.py</code> and saved in <code>results/figures/</code>.</p>
+            </div>
+
+            <div class="figures-grid">
+                <a href="/results/figures/actual_vs_predicted.png" target="_blank" class="figure-thumb">
+                    <div class="figure-img-wrap">
+                        <img src="/results/figures/actual_vs_predicted.png" alt="Actual vs Predicted Traffic">
+                    </div>
+                    <div class="figure-caption">Actual vs. Predicted Traffic</div>
+                </a>
+                <a href="/results/figures/residual_distribution.png" target="_blank" class="figure-thumb">
+                    <div class="figure-img-wrap">
+                        <img src="/results/figures/residual_distribution.png" alt="Residual Distribution">
+                    </div>
+                    <div class="figure-caption">Residual Error Distribution</div>
+                </a>
+                <a href="/results/figures/model_rmse_comparison.png" target="_blank" class="figure-thumb">
+                    <div class="figure-img-wrap">
+                        <img src="/results/figures/model_rmse_comparison.png" alt="RMSE Comparison">
+                    </div>
+                    <div class="figure-caption">RMSE Error Comparison</div>
+                </a>
+                <a href="/results/figures/predicted_traffic_over_time.png" target="_blank" class="figure-thumb">
+                    <div class="figure-img-wrap">
+                        <img src="/results/figures/predicted_traffic_over_time.png" alt="Predicted Traffic Over Time">
+                    </div>
+                    <div class="figure-caption">Test Horizon Forecast Over Time</div>
+                </a>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p><strong>Project 9: Forecasting of Smart City Traffic Patterns</strong> &bull; Machine Learning Internship by UCT</p>
+            <p style="margin-top: 0.25rem;">Powered by Python, Flask, Scikit-learn, and the trained Random Forest Regressor</p>
+        </div>
+    </footer>
+
+    <!-- App JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
